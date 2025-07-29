@@ -75,7 +75,7 @@ void validateAndSetVoltage(AppContext *ctx) {
   ctx->inputValue = 0;
 }
 
-void validateAndSetCalibration(AppContext *ctx) {
+void validateAndSetCalibration(AppContext *ctx, CallbackWithContext storeContext) {
   if (ctx->inputValue < 0 || ctx->inputValue > 100)
   {
     strcpy(ctx->message, "Not in range 0 - 100!");
@@ -85,6 +85,7 @@ void validateAndSetCalibration(AppContext *ctx) {
   ctx->calibrationPoints[ctx->calibrationIndex] = ctx->inputValue;
   ctx->calibrationIndex = (ctx->calibrationIndex + 1) % 3;
   ctx->inputValue = ctx->calibrationPoints[ctx->calibrationIndex];
+  storeContext(ctx);
 }
 
 void updateInput(AppContext *ctx, KeyboardButton key, uint8_t maxValue) // maxValue is actually divided by 10
@@ -97,7 +98,7 @@ void updateInput(AppContext *ctx, KeyboardButton key, uint8_t maxValue) // maxVa
   ctx->inputValue = ctx->inputValue * 10 + digit;
 }
 
-bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPwmCallback, CallbackFunction stopPwmCallback)
+bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPwmCallback, CallbackFunction stopPwmCallback, CallbackWithContext storeContext)
 {
   if (key == KEY_NULL)
   {
@@ -140,7 +141,7 @@ bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPw
 
   if (ctx->currentState == STATE_F2) {
 	if (key >= KEY_0 && key <= KEY_9) updateInput(ctx, key, 10);
-	if (key == KEY_Enter) validateAndSetCalibration(ctx);
+	if (key == KEY_Enter) validateAndSetCalibration(ctx, storeContext);
 	if (key == KEY_BkSp) backspace(ctx);
 	if (key == KEY_ESC) revertCalibration(ctx);
 	if (key == KEY_Clear) clearInput(ctx);
@@ -162,10 +163,6 @@ void InitializeAppContext(AppContext* ctx)
 	ctx->voltage = 0;
 	ctx->inputValue = 0;
 	strcpy(ctx->message, " ");
-
-	ctx->calibrationPoints[0] = 20; // TODO - persist those values in flash
-	ctx->calibrationPoints[1] = 50;
-	ctx->calibrationPoints[2] = 100;
-
+	// calibration points are read from eMMC, no need to initialize them here
 	setSTATE_F2(ctx);
 }

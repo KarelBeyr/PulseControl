@@ -17,12 +17,18 @@ Template based on https://github.com/JakobJelovcan/stm32h7-tetris
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct __attribute__((packed)) {
+    uint16_t val1;
+    uint16_t val2;
+    uint16_t val3;
+    uint16_t magic; // to recognize if the flash has been already setup or not
+} ConfigData;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define EMMC_START_ADDR 0
+#define EMMC_BLOCK_COUNT 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,7 +63,53 @@ void MX_TIM8_PWM_Init();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void StoreContext(AppContext *ctx) {
+//    BSP_MMC_WriteBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
+//    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 
+	ConfigData config;
+	config.val1 = ctx->calibrationPoints[0];
+	config.val2 = ctx->calibrationPoints[1];
+	config.val3 = ctx->calibrationPoints[2];
+	config.magic = 0xAA55;
+
+	uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)] = {0};
+	memcpy(buf, &config, sizeof(ConfigData));
+
+    if (BSP_MMC_WriteBlocks(0, (uint32_t *)buf, EMMC_START_ADDR, 1) != BSP_ERROR_NONE)
+        return;
+
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+}
+
+int ReadContextFromEMMC(AppContext *ctx) {
+    uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
+
+    // initialize reasonable default values in case read from eMMC fails for any reason
+    ctx->calibrationPoints[0] = 20;
+    ctx->calibrationPoints[1] = 50;
+    ctx->calibrationPoints[2] = 100;
+
+    if (BSP_MMC_ReadBlocks(0, buf, EMMC_START_ADDR, 1) != BSP_ERROR_NONE)
+    {
+    	int a = 4;
+    	a++;
+    	// possibly return in here, depending on error in HAL. If its 9, its probably OKay?
+    }
+
+    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+
+    ConfigData config;
+    memcpy(&config, (const void *)buf, sizeof(ConfigData));
+    if (config.magic == 0xAA55)
+    {
+        ctx->calibrationPoints[0] = config.val1;
+        ctx->calibrationPoints[1] = config.val2;
+        ctx->calibrationPoints[2] = config.val3;
+    }
+
+    return 0;
+}
 /* USER CODE END 0 */
 
 /**
@@ -143,10 +195,11 @@ int main(void) {
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     AppContext ctx;
+    ReadContextFromEMMC(&ctx);
     InitializeAppContext(&ctx);
     while (1) {
   	  KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
-  	  bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop);
+  	  bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop, StoreContext);
   	  if (!ctxChanged) continue; // no need to redraw display
   	  UartRenderState(&ctx);
   	  DisplayRenderState(&ctx);

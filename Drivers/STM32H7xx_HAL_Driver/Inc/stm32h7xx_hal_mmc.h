@@ -646,7 +646,7 @@ void HAL_MMC_MspDeInit(MMC_HandleTypeDef *hmmc);
   * @{
   */
 /* Blocking mode: Polling */
-HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd,
+uint16_t HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd,
                                      uint32_t NumberOfBlocks,
                                      uint32_t Timeout);
 HAL_StatusTypeDef HAL_MMC_WriteBlocks(MMC_HandleTypeDef *hmmc, const uint8_t *pData, uint32_t BlockAdd,

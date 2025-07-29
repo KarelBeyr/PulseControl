@@ -70,6 +70,7 @@ typedef struct {
   uint8_t calibrationIndex; // which calibration point are we entering right now?
 } AppContext;
 
+typedef void (*CallbackWithContext)(AppContext *ctx);
 typedef void (*CallbackWithParam)(uint16_t);
 typedef void (*CallbackFunction)(void);
 

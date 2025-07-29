@@ -288,18 +288,19 @@ int32_t BSP_MMC_ReadBlocks(uint32_t Instance, uint32_t *pData, uint32_t BlockIdx
 {
   uint32_t timeout = MMC_READ_TIMEOUT*BlocksNbr;
   int32_t ret;
-
+  ret = BSP_ERROR_NONE;
   if(Instance >= MMC_INSTANCES_NBR)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else if(HAL_MMC_ReadBlocks(&hsd_sdmmc[Instance], (uint8_t *)pData, BlockIdx, BlocksNbr, timeout) != HAL_OK)
-  {
-    ret = BSP_ERROR_PERIPH_FAILURE;
-  }
   else
   {
-    ret = BSP_ERROR_NONE;
+	uint16_t err = HAL_MMC_ReadBlocks(&hsd_sdmmc[Instance], (uint8_t *)pData, BlockIdx, BlocksNbr, timeout);
+	if(err != 0)
+	{
+	    ret = BSP_ERROR_PERIPH_FAILURE;
+	}
+
   }
   /* Return BSP status */
   return ret;

@@ -600,7 +600,7 @@ __weak void HAL_MMC_MspDeInit(MMC_HandleTypeDef *hmmc)
   * @param  Timeout: Specify timeout value
   * @retval HAL status
   */
-HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd,
+uint16_t HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd,
                                      uint32_t NumberOfBlocks,
                                      uint32_t Timeout)
 {
@@ -616,7 +616,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
   if (NULL == pData)
   {
     hmmc->ErrorCode |= HAL_MMC_ERROR_PARAM;
-    return HAL_ERROR;
+    return 1;
   }
 
   if (hmmc->State == HAL_MMC_STATE_READY)
@@ -626,7 +626,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
     if ((BlockAdd + NumberOfBlocks) > (hmmc->MmcCard.LogBlockNbr))
     {
       hmmc->ErrorCode |= HAL_MMC_ERROR_ADDR_OUT_OF_RANGE;
-      return HAL_ERROR;
+      return 2;
     }
 
     /* Check the case of 4kB blocks (field DATA SECTOR SIZE of extended CSD register) */
@@ -637,14 +637,14 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
       {
         /* The number of blocks should be a multiple of 8 sectors of 512 bytes = 4 KBytes */
         hmmc->ErrorCode |= HAL_MMC_ERROR_BLOCK_LEN_ERR;
-        return HAL_ERROR;
+        return 3;
       }
 
       if ((BlockAdd % 8U) != 0U)
       {
         /* The address should be aligned to 8 (corresponding to 4 KBytes blocks) */
         hmmc->ErrorCode |= HAL_MMC_ERROR_ADDR_MISALIGNED;
-        return HAL_ERROR;
+        return 4;
       }
     }
 
@@ -689,7 +689,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
       __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
       hmmc->ErrorCode |= errorstate;
       hmmc->State = HAL_MMC_STATE_READY;
-      return HAL_ERROR;
+      return 5;
     }
 
     /* Poll on SDMMC flags */
@@ -721,7 +721,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
         __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
         hmmc->ErrorCode |= HAL_MMC_ERROR_TIMEOUT;
         hmmc->State = HAL_MMC_STATE_READY;
-        return HAL_TIMEOUT;
+        return 6;
       }
     }
     __SDMMC_CMDTRANS_DISABLE(hmmc->Instance);
@@ -737,7 +737,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
         __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
         hmmc->ErrorCode |= errorstate;
         hmmc->State = HAL_MMC_STATE_READY;
-        return HAL_ERROR;
+        return 7;
       }
     }
 
@@ -748,7 +748,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
       __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
       hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_TIMEOUT;
       hmmc->State = HAL_MMC_STATE_READY;
-      return HAL_ERROR;
+      return 8;
     }
     else if (__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_DCRCFAIL))
     {
@@ -756,7 +756,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
       __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
       hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_CRC_FAIL;
       hmmc->State = HAL_MMC_STATE_READY;
-      return HAL_ERROR;
+      return 9;
     }
     else if (__HAL_MMC_GET_FLAG(hmmc, SDMMC_FLAG_RXOVERR))
     {
@@ -764,7 +764,7 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
       __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
       hmmc->ErrorCode |= HAL_MMC_ERROR_RX_OVERRUN;
       hmmc->State = HAL_MMC_STATE_READY;
-      return HAL_ERROR;
+      return 10;
     }
     else
     {
@@ -776,12 +776,12 @@ HAL_StatusTypeDef HAL_MMC_ReadBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, ui
 
     hmmc->State = HAL_MMC_STATE_READY;
 
-    return HAL_OK;
+    return 0;
   }
   else
   {
     hmmc->ErrorCode |= HAL_MMC_ERROR_BUSY;
-    return HAL_ERROR;
+    return 11;
   }
 }
 
