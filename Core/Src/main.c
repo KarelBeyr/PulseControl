@@ -5,6 +5,9 @@ Template based on https://github.com/JakobJelovcan/stm32h7-tetris
  /* USER CODE END Header */
  /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "FlexiKeyboard.h"
+#include "display.h"
+#include "appLogic.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -31,6 +34,7 @@ Template based on https://github.com/JakobJelovcan/stm32h7-tetris
 /* Definitions for lcdTask */
 TIM_HandleTypeDef tim2;
 RNG_HandleTypeDef rng;
+TIM_HandleTypeDef htim8;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -41,7 +45,11 @@ static void LCD_Config(void);
 static void TS_Config(void);
 static void TIM_Config(void);
 static void RNG_Config(void);
-static void MMC_Config(void);
+static int32_t MMC_Config(void);
+
+void TIM8_Stop();
+void TIM8_Start(uint16_t percent);
+void MX_TIM8_PWM_Init();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -76,6 +84,10 @@ int main(void) {
     LCD_Config();
     TIM_Config();
     MMC_Config();
+
+    InitFlexiKeyboard(); // has to be AFTER InitializeLcd, which initializes PK1 as LTDC_G6 pin. We override it, so we might lose some precision on green channel.
+    MX_TIM8_PWM_Init(); // initialize PWM output on pin PI2
+
     /* USER CODE END SysInit */
 
     /* Initialize all configured peripherals */
@@ -115,7 +127,7 @@ int main(void) {
 
     /* USER CODE BEGIN RTOS_EVENTS */
     /* add events, ... */
-    HAL_TIM_Base_Start_IT(&tim2);
+    //HAL_TIM_Base_Start_IT(&tim2);
     //reset_game();
     /* USER CODE END RTOS_EVENTS */
 
@@ -125,13 +137,69 @@ int main(void) {
     /* We should never get here as control is now taken by the scheduler */
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
+    AppContext ctx;
+    InitializeAppContext(&ctx);
     while (1) {
-    	UTIL_LCD_DrawLine(10,  10, 300,  200, UTIL_LCD_COLOR_WHITE);
+  	  KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
+  	  bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop);
+  	  if (!ctxChanged) continue; // no need to redraw display
+  	  UartRenderState(&ctx);
+  	  DisplayRenderState(&ctx);
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
     }
     /* USER CODE END 3 */
+}
+
+void MX_TIM8_PWM_Init()
+{
+    __HAL_RCC_GPIOI_CLK_ENABLE();
+    __HAL_RCC_TIM8_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_2;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF3_TIM8;
+    HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+
+    uint32_t timerClock = HAL_RCC_GetPCLK2Freq(); // TIM8 is on APB2
+    uint32_t prescaler = 9;
+    uint32_t period = (timerClock / ((prescaler + 1) * 5000)) - 1; // 10kHz - magic, I need to look at this deeper
+
+    htim8.Instance = TIM8;
+    htim8.Init.Prescaler = prescaler;
+    htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim8.Init.Period = period;
+    htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim8.Init.RepetitionCounter = 0;
+    htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+
+    if (HAL_TIM_PWM_Init(&htim8) != HAL_OK) Error_Handler();
+
+    TIM_OC_InitTypeDef sConfigOC = {0};
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 0; // (period + 1) * duty / 100;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+
+    if (HAL_TIM_PWM_ConfigChannel(&htim8, &sConfigOC, TIM_CHANNEL_4) != HAL_OK) Error_Handler();
+}
+
+void TIM8_Start(uint16_t percent)
+{
+	// TODO convert voltage to PWM percentage using calibration points
+    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim8);
+    uint32_t pulse = (period + 1) * percent / 100;
+    __HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_4, pulse);
+    HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
+}
+
+void TIM8_Stop()
+{
+    HAL_TIM_PWM_Stop(&htim8, TIM_CHANNEL_4);
 }
 
 /**
@@ -248,19 +316,19 @@ static void RNG_Config(void) {
     }
 }
 
-static void MMC_Config(void) {
-    int32_t mmc_state = BSP_MMC_Init(0);
+static int32_t MMC_Config(void) {
+    return BSP_MMC_Init(0);
 }
 
-void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
-    static uint16_t buffer_index = 0;
-
-    buffer_index = 1 - buffer_index;
-    uint32_t buffer_addr = (buffer_index) ? LCD_LAYER_1_ADDRESS : LCD_LAYER_0_ADDRESS;
-    BSP_LCD_Reload(0, BSP_LCD_RELOAD_NONE); //Disable reloading
-    BSP_LCD_SetLayerAddress(0, 0, buffer_addr); //Update the buffer
-    UTIL_LCD_Clear(UTIL_LCD_COLOR_BLACK); //Clear the new buffer
-}
+//void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
+//    static uint16_t buffer_index = 0;
+//
+//    buffer_index = 1 - buffer_index;
+//    uint32_t buffer_addr = (buffer_index) ? LCD_LAYER_1_ADDRESS : LCD_LAYER_0_ADDRESS;
+//    BSP_LCD_Reload(0, BSP_LCD_RELOAD_NONE); //Disable reloading
+//    BSP_LCD_SetLayerAddress(0, 0, buffer_addr); //Update the buffer
+//    UTIL_LCD_Clear(UTIL_LCD_COLOR_BLACK); //Clear the new buffer
+//}
 
 /* USER CODE END 4 */
 
