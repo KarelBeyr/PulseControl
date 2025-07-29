@@ -1,6 +1,7 @@
 #include "display.h"
 #include "appLogic.h"
 #include "stm32_lcd.h"
+#include <stdlib.h>
 
 uint32_t x_size, y_size;
 #define LCD_LINE_WIDTH 24
@@ -189,11 +190,11 @@ const char* getValueWithCursor(AppContext *ctx) {
 
 void DrawCalibrationLine(AppContext *ctx, uint16_t voltage, uint8_t idx)
 {
-	char buffer[LCD_LINE_WIDTH+1];
+	char buffer[LCD_LINE_WIDTH+5];
     if (ctx->calibrationIndex == idx)
-    	sprintf(buffer, "PWM %% for %dV: %s", voltage, getValueWithCursor(ctx));
+    	sprintf(buffer, "PWM pct for %dV: %s", voltage, getValueWithCursor(ctx));
     else
-    	sprintf(buffer, "PWM %% for %dV: %d", voltage, ctx->calibrationPoints[idx]);
+    	sprintf(buffer, "PWM pct for %dV: %d", voltage, ctx->calibrationPoints[idx]);
     displayPaddedLine(idx+1, buffer);
 }
 
