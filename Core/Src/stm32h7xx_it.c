@@ -20,12 +20,9 @@
   /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32h7xx_it.h"
-#include "FreeRTOS.h"
-#include "task.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "cmsis_os2.h"
-#include "tetris.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,7 +59,6 @@
 
 /* USER CODE BEGIN EV */
 extern TIM_HandleTypeDef tim2;
-extern osMessageQueueId_t actionQueue;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -153,13 +149,6 @@ void SysTick_Handler(void) {
 
     /* USER CODE END SysTick_IRQn 0 */
     HAL_IncTick();
-#if (INCLUDE_xTaskGetSchedulerState == 1 )
-    if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-#endif /* INCLUDE_xTaskGetSchedulerState */
-        xPortSysTickHandler();
-#if (INCLUDE_xTaskGetSchedulerState == 1 )
-    }
-#endif /* INCLUDE_xTaskGetSchedulerState */
     /* USER CODE BEGIN SysTick_IRQn 1 */
 
     /* USER CODE END SysTick_IRQn 1 */
@@ -178,21 +167,12 @@ void LTDC_IRQHandler(void) {
     HAL_LTDC_IRQHandler(&hlcd_ltdc);
     HAL_NVIC_ClearPendingIRQ(LTDC_IRQn);
 }
-
-void TIM2_IRQHandler(void) {
-    if (__HAL_TIM_GET_FLAG(&tim2, TIM_FLAG_UPDATE)) {
-        tick();
-        __HAL_TIM_CLEAR_FLAG(&tim2, TIM_FLAG_UPDATE);
-    }
-    HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);
-}
-
-void EXTI15_10_IRQHandler(void) {
-    static const action_t reset = RESET_GAME;
-    if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_13)) {
-        __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_13);
-        osMessageQueuePut(actionQueue, &reset, 0U, 0U);
-        HAL_NVIC_ClearPendingIRQ(EXTI15_10_IRQn);
-    }
-}
+//
+//void TIM2_IRQHandler(void) {
+//    if (__HAL_TIM_GET_FLAG(&tim2, TIM_FLAG_UPDATE)) {
+//        tick();
+//        __HAL_TIM_CLEAR_FLAG(&tim2, TIM_FLAG_UPDATE);
+//    }
+//    HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);
+//}
 /* USER CODE END 1 */

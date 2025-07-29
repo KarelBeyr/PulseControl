@@ -35,7 +35,6 @@ extern "C" {
 #include <string.h>
 #include <stdbool.h>
     
-#include "tetris.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h750b_discovery.h"
 #include "stm32h750b_discovery_ts.h"

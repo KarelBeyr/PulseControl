@@ -5,7 +5,6 @@ Template based on https://github.com/JakobJelovcan/stm32h7-tetris
  /* USER CODE END Header */
  /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -30,29 +29,17 @@ Template based on https://github.com/JakobJelovcan/stm32h7-tetris
 /* Private variables ---------------------------------------------------------*/
 
 /* Definitions for lcdTask */
-osThreadId_t lcdTaskHandle;
-const osThreadAttr_t lcdTask_attributes = { .name = "lcdTask", .stack_size = 128
-        * 4, .priority = (osPriority_t)osPriorityNormal, };
-/* Definitions for inputTask */
-osThreadId_t inputTaskHandle;
-const osThreadAttr_t inputTask_attributes = { .name = "inputTask", .stack_size =
-        128 * 4, .priority = (osPriority_t)osPriorityLow, };
-/* USER CODE BEGIN PV */
-osMessageQueueId_t actionQueue;
 TIM_HandleTypeDef tim2;
 RNG_HandleTypeDef rng;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void StartLcdTask(void* argument);
-void StartInputTask(void* argument);
 
 /* USER CODE BEGIN PFP */
 static void LCD_Config(void);
 static void TS_Config(void);
 static void TIM_Config(void);
-static void BTN_Config(void);
 static void RNG_Config(void);
 static void MMC_Config(void);
 /* USER CODE END PFP */
@@ -88,7 +75,6 @@ int main(void) {
     RNG_Config();
     LCD_Config();
     TIM_Config();
-    //BTN_Config();
     MMC_Config();
     /* USER CODE END SysInit */
 
@@ -140,6 +126,7 @@ int main(void) {
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
     while (1) {
+    	UTIL_LCD_DrawLine(10,  10, 300,  200, UTIL_LCD_COLOR_WHITE);
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
@@ -252,20 +239,6 @@ static void TIM_Config(void) {
     __HAL_TIM_CLEAR_FLAG(&tim2, TIM_FLAG_UPDATE);
 }
 
-static void BTN_Config(void) {
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 10, 10);
-    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-
-    GPIO_InitTypeDef init = { 0 };
-    init.Pin = GPIO_PIN_13;
-    init.Mode = GPIO_MODE_IT_RISING;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Pull = GPIO_PULLDOWN;
-
-    HAL_GPIO_Init(GPIOC, &init);
-}
-
 static void RNG_Config(void) {
     __HAL_RCC_RNG_CLK_ENABLE();
     rng.Instance = RNG;
@@ -290,68 +263,6 @@ void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
 }
 
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartLcdTask */
-/**
- * @brief  Function implementing the lcdTask thread.
- * @param  argument: Not used
- * @retval None
- */
- /* USER CODE END Header_StartLcdTask */
-void StartLcdTask(void* argument) {
-    /* USER CODE BEGIN 5 */
-    /* Infinite loop */
-    action_t action;
-    for (;;) {
-        while (osMessageQueueGet(actionQueue, &action, 0U, 0U) == osOK) {
-            perform_action(action);
-        }
-        update_state();
-        clear_lines();
-        render();
-        BSP_LCD_Reload(0, BSP_LCD_RELOAD_VERTICAL_BLANKING);
-        osDelay(20);
-    }
-    /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_StartInputTask */
-/**
- * @brief Function implementing the inputTask thread.
- * @param argument: Not used
- * @retval None
- */
- /* USER CODE END Header_StartInputTask */
-void StartInputTask(void* argument) {
-    TS_State_t touch_state;
-    /* USER CODE BEGIN StartInputTask */
-    /* Infinite loop */
-    for (;;) {
-        BSP_TS_GetState(0, &touch_state);
-        //Shift button state
-        for (size_t i = 0; i < N_BTN; ++i) {
-            buttons[i].state <<= 1;
-        }
-        //Get new button states
-        if (touch_state.TouchDetected) {
-            for (size_t i = 0; i < N_BTN; ++i) {
-                buttons[i].state |= (buttons[i].x <= touch_state.TouchX &&
-                    buttons[i].x + X_BTN >= touch_state.TouchX &&
-                    buttons[i].y <= touch_state.TouchY &&
-                    buttons[i].y + Y_BTN >= touch_state.TouchY);
-            }
-        }
-        //Update actions
-        for (size_t i = 0; i < N_BTN; ++i) {
-            if ((buttons[i].state & 0xf) == 0x3) {
-                buttons[i].polygon.selected = 1 - buttons[i].polygon.selected;
-                osMessageQueuePut(actionQueue, &buttons[i].action, 2U, 0U);
-            }
-        }
-        osDelay(10);
-    }
-    /* USER CODE END StartInputTask */
-}
 
 /**
  * @brief  This function is executed in case of error occurrence.
