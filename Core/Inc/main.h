@@ -69,6 +69,8 @@ typedef struct {
   // F2 - screen where user sets three calibration points - TODO later
   uint16_t calibrationPoints[3];
   uint8_t calibrationIndex; // which calibration point are we entering right now?
+
+  uint16_t animationIndex;
 } AppContext;
 
 typedef void (*CallbackWithContext)(AppContext *ctx);

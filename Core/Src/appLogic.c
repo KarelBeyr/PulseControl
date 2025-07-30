@@ -49,6 +49,7 @@ void startPWM(AppContext *ctx, CallbackWithParam startPwmCallback) {
 
 void setSTATE_F4(AppContext *ctx) {
   clearInput(ctx);
+  ctx->animationIndex = 21845; // so that it starts on UTIL_LCD_COLOR_GREEN
   ctx->currentState = STATE_F4;
 }
 

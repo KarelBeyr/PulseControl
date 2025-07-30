@@ -132,10 +132,45 @@ void DrawText(uint16_t x, uint16_t y, uint8_t *text)
     }
 }
 
-void DrawMegaText(uint8_t *text)
+// Converts HSV to RGB (8-bit per channel), hue in [0, 360)
+uint32_t HSVtoRGB(float h, float s, float v)
+{
+    float r, g, b;
+
+    int i = (int)(h / 60.0f) % 6;
+    float f = (h / 60.0f) - i;
+    float p = v * (1.0f - s);
+    float q = v * (1.0f - f * s);
+    float t = v * (1.0f - (1.0f - f) * s);
+
+    switch (i) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+    }
+
+    uint8_t R = (uint8_t)(r * 255.0f);
+    uint8_t G = (uint8_t)(g * 255.0f);
+    uint8_t B = (uint8_t)(b * 255.0f);
+
+    return (0xFF << 24) | (R << 16) | (G << 8) | B;
+}
+
+void DrawMegaText(uint8_t *text, AppContext *ctx)
 {
 	sFONT *oldfont = font;
 	uint32_t oldColor = foregroundColor;
+
+
+	ctx->animationIndex = ctx->animationIndex + 128;
+	// Map animation index [0..65535] to hue [0..360)
+	    float hue = ((float)(ctx->animationIndex % 65536) / 65536.0f) * 360.0f;
+	    foregroundColor = HSVtoRGB(hue, 1.0f, 1.0f);  // Full saturation & brightness
+  printf("animindx: %d, fgc: 0x%08lX\n", ctx->animationIndex, foregroundColor);
+
 	font = &Font128;
 	int textWidth = strlen((char *)text) * font->Width;
 	uint16_t x = (LCD_WIDTH - textWidth) / 2;
@@ -297,7 +332,7 @@ void DisplayState(AppContext *ctx)
   else if (ctx->currentState == STATE_F4)
   {
     sprintf(buffer, "%dV", ctx->voltage);
-	DrawMegaText((uint8_t *)buffer);
+	DrawMegaText((uint8_t *)buffer, ctx);
   }
   foregroundColor = UTIL_LCD_COLOR_RED;
   displayTextLine(4, ctx->message);
