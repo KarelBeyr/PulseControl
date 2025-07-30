@@ -73,14 +73,38 @@ void DrawLine(int x0, int y0, int x1, int y1, uint32_t color)
 }
 
 
-void DrawChar(uint16_t x, uint16_t y, char c)
+void DrawChar(uint16_t x, uint16_t y, char c, bool isFullFont)
 {
     uint16_t i, j;
     uint16_t width = font->Width;
     uint16_t height = font->Height;
     uint8_t bytesPerRow = (width + 7) / 8;
 
-    const uint8_t *char_table = font->table + (c - 32) * height * bytesPerRow;
+    const uint8_t *char_table;
+
+	if (isFullFont)
+	{
+		if (c < 32 || c > 126)
+			return; // Outside printable ASCII range
+
+		char_table = font->table + (c - 32) * height * bytesPerRow;
+	}
+	else
+	{
+		// Font only contains '0' to '9' and 'V'
+		if ((c >= '0' && c <= '9'))
+		{
+			char_table = font->table + (c - '0') * height * bytesPerRow;
+		}
+		else if (c == 'V')
+		{
+			char_table = font->table + (10) * height * bytesPerRow; // after 10 digits
+		}
+		else
+		{
+			return; // Not in partial font
+		}
+	}
 
     for (i = 0; i < height; i++)
     {
@@ -102,10 +126,28 @@ void DrawText(uint16_t x, uint16_t y, uint8_t *text)
 {
     while (*text)
     {
-        DrawChar(x, y, *text);
+        DrawChar(x, y, *text, true);
         x += font->Width;
         text++;
     }
+}
+
+void DrawMegaText(uint8_t *text)
+{
+	sFONT *oldfont = font;
+	uint32_t oldColor = foregroundColor;
+	font = &Font128;
+	int textWidth = strlen((char *)text) * font->Width;
+	uint16_t x = (LCD_WIDTH - textWidth) / 2;
+	uint16_t y = (LCD_HEIGHT - font->Height) / 2;
+    while (*text)
+    {
+        DrawChar(x, y, *text, false);
+        x += font->Width;
+        text++;
+    }
+    font = oldfont;
+    foregroundColor = oldColor;
 }
 
 void displayTextLine(uint16_t y, const char *text)
@@ -252,7 +294,11 @@ void DisplayState(AppContext *ctx)
     displayTextLine(2, "");
     displayTextLine(3, "");
   }
-
+  else if (ctx->currentState == STATE_F4)
+  {
+    sprintf(buffer, "%dV", ctx->voltage);
+	DrawMegaText((uint8_t *)buffer);
+  }
   foregroundColor = UTIL_LCD_COLOR_RED;
   displayTextLine(4, ctx->message);
 

@@ -52,6 +52,7 @@ typedef enum {
     STATE_F1,
     STATE_F2,
     STATE_F3,
+    STATE_F4,
 } AppState;
 
 typedef struct {

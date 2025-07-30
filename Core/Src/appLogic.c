@@ -47,6 +47,11 @@ void startPWM(AppContext *ctx, CallbackWithParam startPwmCallback) {
   startPwmCallback(percent);
 }
 
+void setSTATE_F4(AppContext *ctx) {
+  clearInput(ctx);
+  ctx->currentState = STATE_F4;
+}
+
 void setSTATE_F3(AppContext *ctx) {
   clearInput(ctx);
   ctx->currentState = STATE_F3;
@@ -110,6 +115,9 @@ bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPw
 		  lastCursorTime = now;
 		  return true;
 	  }
+
+	  if (ctx->currentState == STATE_F4) return true; // to do some crazy animations
+
 	  return false;
   }
   strcpy(ctx->message, "");
@@ -118,6 +126,7 @@ bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPw
 	if (ctx->isPwmRunning == true)
 	{
 	  if (key == KEY_Stop) stopPWM(ctx, stopPwmCallback);
+	  if (key == KEY_F4) setSTATE_F4(ctx);
 	  return false; // when PWM is running, we can only press the "STOP" button
 	}
 
@@ -153,6 +162,10 @@ bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPw
 	if (key == KEY_F1) setSTATE_F1(ctx);
 	if (key == KEY_F2) setSTATE_F2(ctx);
   }
+
+  if (ctx->currentState == STATE_F4) {
+	if (key == KEY_F1) setSTATE_F1(ctx);
+  }
 return true;
 }
 
@@ -164,5 +177,5 @@ void InitializeAppContext(AppContext* ctx)
 	ctx->inputValue = 0;
 	strcpy(ctx->message, " ");
 	// calibration points are read from eMMC, no need to initialize them here
-	setSTATE_F2(ctx);
+	setSTATE_F1(ctx);
 }
