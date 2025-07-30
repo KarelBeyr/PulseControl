@@ -3,9 +3,6 @@
 #include "main.h"
 #include "string.h"
 
-void InitializeLcd(void);
-void UartRenderState(AppContext *ctx);
-void UartClearScreen();
-void DisplayRenderState(AppContext *ctx);
+void DisplayState(AppContext *ctx);
 
 #endif
