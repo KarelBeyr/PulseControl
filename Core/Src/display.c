@@ -325,8 +325,9 @@ void DisplayState(AppContext *ctx)
   else if (ctx->currentState == STATE_F3)
   {
 	displayTextLine(0, "F3: Voltage and current");
-    displayTextLine(1, "");
-    displayTextLine(2, "");
+    sprintf(buffer, "Current: %dA", ctx->currentSensor);
+    displayTextLine(1, buffer);
+	displayTextLine(2, "");
     displayTextLine(3, "");
   }
   else if (ctx->currentState == STATE_F4)

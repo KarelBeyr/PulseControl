@@ -71,6 +71,8 @@ typedef struct {
   uint8_t calibrationIndex; // which calibration point are we entering right now?
 
   uint16_t animationIndex;
+
+  uint32_t currentSensor;
 } AppContext;
 
 typedef void (*CallbackWithContext)(AppContext *ctx);

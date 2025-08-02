@@ -43,6 +43,7 @@ TIM_HandleTypeDef tim2;
 RNG_HandleTypeDef rng;
 TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart3;
+ADC_HandleTypeDef hadc1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -55,6 +56,8 @@ static void TIM_Config(void);
 static void RNG_Config(void);
 static void MX_USART3_UART_Init(void);
 static int32_t MMC_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_ADC1_Init(void);
 
 void TIM8_Stop();
 void TIM8_Start(uint16_t percent);
@@ -139,11 +142,15 @@ int main(void) {
     LCD_Config();
     TIM_Config();
     MMC_Config();
+    MX_GPIO_Init();
+    MX_ADC1_Init();
 
     InitFlexiKeyboard(); // has to be AFTER InitializeLcd, which initializes PK1 as LTDC_G6 pin. We override it, so we might lose some precision on green channel.
     MX_TIM8_PWM_Init(); // initialize PWM output on pin PI2
     MX_USART3_UART_Init();
     RetargetInit(&huart3);
+
+    HAL_ADC_Start(&hadc1);
 
     /* USER CODE END SysInit */
 
@@ -156,7 +163,22 @@ int main(void) {
     AppContext ctx;
     ReadContextFromEMMC(&ctx);
     InitializeAppContext(&ctx);
+
+    if (HAL_ADC_DeInit(&hadc1) != HAL_OK) {
+      Error_Handler();
+    }
+
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
     while (1) {
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+      uint16_t raw = HAL_ADC_GetValue(&hadc1);
+      ctx.currentSensor = raw;
+
   	  KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
   	  bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop, StoreContext);
   	  if (!ctxChanged) continue; // no need to redraw display
@@ -167,6 +189,114 @@ int main(void) {
     }
     /* USER CODE END 3 */
 }
+
+void MX_GPIO_Init(void)
+{
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_0; // PA0 = ADC1_IN0
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+
+//void MX_ADC1_Init(void)
+//{
+//    __HAL_RCC_ADC12_CLK_ENABLE(); // ADC1 and ADC2 share the same clock on H7
+//
+//    hadc1.Instance = ADC1;
+//    hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+//    hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+//    hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+//    hadc1.Init.ContinuousConvMode = DISABLE;
+//    hadc1.Init.DiscontinuousConvMode = DISABLE;
+//    hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+//    hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+//    hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+//    hadc1.Init.NbrOfConversion = 1;
+//    hadc1.Init.DMAContinuousRequests = DISABLE;
+//    hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+//
+//    if (HAL_ADC_Init(&hadc1) != HAL_OK)
+//    {
+//        Error_Handler();
+//    }
+//
+//    ADC_ChannelConfTypeDef sConfig = {0};
+//    sConfig.Channel = ADC_CHANNEL_0; // PA0 = ADC1_IN0
+//    sConfig.Rank = ADC_REGULAR_RANK_1;
+//    sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+//    sConfig.SingleDiff = ADC_SINGLE_ENDED;
+//    sConfig.OffsetNumber = ADC_OFFSET_NONE;
+//    sConfig.Offset = 0;
+//
+//    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//    {
+//        Error_Handler();
+//    }
+//}
+
+void MX_ADC1_Init(void)
+{
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  __HAL_RCC_ADC12_CLK_ENABLE(); // ADC1 and ADC2 share the same clock on H7
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+  hadc1.Init.OversamplingMode = DISABLE;
+  hadc1.Init.Oversampling.Ratio = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV2;
+  hadc1.Init.Resolution = ADC_RESOLUTION_16B;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_18;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  sConfig.OffsetSignedSaturation = DISABLE;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+}
+
 
 void MX_TIM8_PWM_Init()
 {
@@ -285,74 +415,148 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart) // I had to explicitly define t
  * @brief System Clock Configuration
  * @retval None
  */
-void SystemClock_Config(void) {
-    RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-    RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+void SystemClock_Config(void)
+{
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+  HAL_StatusTypeDef ret = HAL_OK;
 
-    /*!< Supply configuration update enable */
-    HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+  /*!< Supply configuration update enable */
+  HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
 
-    /* The voltage scaling allows optimizing the power consumption when the device is
+  /* The voltage scaling allows optimizing the power consumption when the device is
      clocked below the maximum system frequency, to update the voltage scaling value
      regarding system frequency refer to product datasheet.  */
-    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {
-    }
+  while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
-    RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
-    RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLM = 5;
-    RCC_OscInitStruct.PLL.PLLN = 160;
-    RCC_OscInitStruct.PLL.PLLP = 2;
-    RCC_OscInitStruct.PLL.PLLQ = 2;
-    RCC_OscInitStruct.PLL.PLLR = 2;
-    RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
-    RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
-    RCC_OscInitStruct.PLL.PLLFRACN = 0;
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-        Error_Handler();
-    }
+  /* Enable HSE Oscillator and activate PLL with HSE as source */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
+  RCC_OscInitStruct.CSIState = RCC_CSI_OFF;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
 
-    /** Initializes the CPU, AHB and APB buses clocks
-    */
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-        | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2
-        | RCC_CLOCKTYPE_D3PCLK1 | RCC_CLOCKTYPE_D1PCLK1;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-    RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
-    RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
-    RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
-    RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+  RCC_OscInitStruct.PLL.PLLM = 5;
+  RCC_OscInitStruct.PLL.PLLN = 160;
+  RCC_OscInitStruct.PLL.PLLFRACN = 0;
+  RCC_OscInitStruct.PLL.PLLP = 2;
+  RCC_OscInitStruct.PLL.PLLR = 2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
 
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
-        Error_Handler();
-    }
+  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+  ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
+  if(ret != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-    /*
-     Note : The activation of the I/O Compensation Cell is recommended with communication  interfaces
-     (GPIO, SPI, FMC, QSPI ...)  when  operating at  high frequencies(please refer to product datasheet)
-     The I/O Compensation Cell activation  procedure requires :
-     - The activation of the CSI clock
-     - The activation of the SYSCFG clock
-     - Enabling the I/O Compensation Cell : setting bit[0] of register SYSCFG_CCCSR
-     */
+/* Select PLL as system clock source and configure  bus clocks dividers */
+  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_D1PCLK1 | RCC_CLOCKTYPE_PCLK1 | \
+                                 RCC_CLOCKTYPE_PCLK2  | RCC_CLOCKTYPE_D3PCLK1);
 
-     /*activate CSI clock mandatory for I/O Compensation Cell*/
-    __HAL_RCC_CSI_ENABLE();
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
+  RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+  ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
+  if(ret != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-    /* Enable SYSCFG clock mandatory for I/O Compensation Cell */
-    __HAL_RCC_SYSCFG_CLK_ENABLE()
-        ;
+ /*
+  Note : The activation of the I/O Compensation Cell is recommended with communication  interfaces
+          (GPIO, SPI, FMC, QSPI ...)  when  operating at  high frequencies(please refer to product datasheet)
+          The I/O Compensation Cell activation  procedure requires :
+        - The activation of the CSI clock
+        - The activation of the SYSCFG clock
+        - Enabling the I/O Compensation Cell : setting bit[0] of register SYSCFG_CCCSR
+ */
 
-    /* Enables the I/O Compensation Cell */
-    HAL_EnableCompensationCell();
+  /*activate CSI clock mondatory for I/O Compensation Cell*/
+  __HAL_RCC_CSI_ENABLE() ;
+
+  /* Enable SYSCFG clock mondatory for I/O Compensation Cell */
+  __HAL_RCC_SYSCFG_CLK_ENABLE() ;
+
+  /* Enables the I/O Compensation Cell */
+  HAL_EnableCompensationCell();
 }
+//void SystemClock_Config(void) {
+//    RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+//    RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+//
+//    /*!< Supply configuration update enable */
+//    HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+//
+//    /* The voltage scaling allows optimizing the power consumption when the device is
+//     clocked below the maximum system frequency, to update the voltage scaling value
+//     regarding system frequency refer to product datasheet.  */
+//    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+//
+//    while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {
+//    }
+//
+//    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+//    RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+//    RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+//    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+//    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+//    RCC_OscInitStruct.PLL.PLLM = 5;
+//    RCC_OscInitStruct.PLL.PLLN = 160;
+//    RCC_OscInitStruct.PLL.PLLP = 2;
+//    RCC_OscInitStruct.PLL.PLLQ = 2;
+//    RCC_OscInitStruct.PLL.PLLR = 2;
+//    RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+//    RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+//    RCC_OscInitStruct.PLL.PLLFRACN = 0;
+//    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+//        Error_Handler();
+//    }
+//
+//    /** Initializes the CPU, AHB and APB buses clocks
+//    */
+//    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+//        | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2
+//        | RCC_CLOCKTYPE_D3PCLK1 | RCC_CLOCKTYPE_D1PCLK1;
+//    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+//    RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
+//    RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
+//    RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+//    RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+//    RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
+//    RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+//
+//    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
+//        Error_Handler();
+//    }
+//
+//    /*
+//     Note : The activation of the I/O Compensation Cell is recommended with communication  interfaces
+//     (GPIO, SPI, FMC, QSPI ...)  when  operating at  high frequencies(please refer to product datasheet)
+//     The I/O Compensation Cell activation  procedure requires :
+//     - The activation of the CSI clock
+//     - The activation of the SYSCFG clock
+//     - Enabling the I/O Compensation Cell : setting bit[0] of register SYSCFG_CCCSR
+//     */
+//
+//     /*activate CSI clock mandatory for I/O Compensation Cell*/
+//    __HAL_RCC_CSI_ENABLE();
+//
+//    /* Enable SYSCFG clock mandatory for I/O Compensation Cell */
+//    __HAL_RCC_SYSCFG_CLK_ENABLE()
+//        ;
+//
+//    /* Enables the I/O Compensation Cell */
+//    HAL_EnableCompensationCell();
+//}
 
 /* USER CODE BEGIN 4 */
 static void LCD_Config(void) {
