@@ -8,15 +8,15 @@ GPIOPin rowPins[NUM_ROWS] = {
     { GPIOA, GPIO_PIN_6 }, //D3
     { GPIOK, GPIO_PIN_1 }, //D4  // careful, this pin is also used in stm32h750b_discovery_lcd.c for LTDC_G6 (green) pin. We overwrite it and hope for the best.
     { GPIOA, GPIO_PIN_8 }, //D5
-    { GPIOE, GPIO_PIN_6 }  //D6
+	{ GPIOB, GPIO_PIN_15 }  //D11
 };
 
 GPIOPin colPins[NUM_COLS] = {
+    { GPIOE, GPIO_PIN_6 },  //D6
     { GPIOI, GPIO_PIN_8 },  //D7
     { GPIOE, GPIO_PIN_3 },  //D8
     { GPIOH, GPIO_PIN_15 }, //D9
-    { GPIOB, GPIO_PIN_4 },  //D10
-	{ GPIOB, GPIO_PIN_15 }  //D11
+    { GPIOB, GPIO_PIN_4 }  //D10
 };
 
 const KeyboardButton keymap[5][5] = {
