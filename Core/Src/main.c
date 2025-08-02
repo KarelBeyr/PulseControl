@@ -39,15 +39,20 @@ typedef struct __attribute__((packed))
 
 /* Private variables ---------------------------------------------------------*/
 
+UART_HandleTypeDef huart3;
 /* Definitions for lcdTask */
 TIM_HandleTypeDef tim2;
 RNG_HandleTypeDef rng;
 TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart3;
+
+uint8_t uart_rx_byte;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+//static void MX_GPIO_Init(void);
+static void MX_USART3_UART_Init(void);
 
 /* USER CODE BEGIN PFP */
 static void LCD_Config(void);
@@ -114,6 +119,7 @@ int main(void)
   AppContext ctx;
   ReadContextFromEMMC(&ctx);
   InitializeAppContext(&ctx);
+  HAL_UART_Receive_IT(&huart3, &uart_rx_byte, 1);
   while (1)
   {
     KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
@@ -196,13 +202,11 @@ static void MX_USART3_UART_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8)
-      != HAL_OK)
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8)
-      != HAL_OK)
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
@@ -425,6 +429,28 @@ int ReadContextFromEMMC(AppContext *ctx)
   }
 
   return 0;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART3)
+  {
+//    if (uart_rx_byte == '\r')
+//    {  // End of input (Enter key)
+//      uart_buffer[uart_index] = '\0';  // Null-terminate string
+//      uart_number_ready = true;
+//      uart_index = 0;
+//    } else if (uart_index < UART_BUFFER_SIZE - 1)
+//    {
+//      if (uart_rx_byte >= '0' && uart_rx_byte <= '9')
+//      {
+//        uart_buffer[uart_index++] = uart_rx_byte;
+//      }
+//    }
+//
+//    // Continue receiving next character
+    HAL_UART_Receive_IT(&huart3, &uart_rx_byte, 1);
+  }
 }
 
 //void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
