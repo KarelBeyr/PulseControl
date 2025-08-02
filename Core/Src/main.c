@@ -123,6 +123,11 @@ int main(void)
   while (1)
   {
     KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
+    if (key == 'N' && uart_rx_byte != 0)
+    {
+      key = uart_rx_byte;
+      uart_rx_byte = 0;
+    }
     bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop, StoreContext);
     if (!ctxChanged) continue; // no need to redraw display
     DisplayState(&ctx);
@@ -438,20 +443,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART3)
   {
-//    if (uart_rx_byte == '\r')
-//    {  // End of input (Enter key)
-//      uart_buffer[uart_index] = '\0';  // Null-terminate string
-//      uart_number_ready = true;
-//      uart_index = 0;
-//    } else if (uart_index < UART_BUFFER_SIZE - 1)
-//    {
-//      if (uart_rx_byte >= '0' && uart_rx_byte <= '9')
-//      {
-//        uart_buffer[uart_index++] = uart_rx_byte;
-//      }
-//    }
-//
-//    // Continue receiving next character
     HAL_UART_Receive_IT(&huart3, &uart_rx_byte, 1);
   }
 }

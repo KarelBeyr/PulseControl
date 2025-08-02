@@ -88,12 +88,12 @@ typedef enum { // A bit atypical, but I want to be able to read data from PC con
   KEY_7 = '7',
   KEY_8 = '8',
   KEY_9 = '9',
-  KEY_Enter = 'e',
+  KEY_Enter = '\r', // enter on keyboard
   KEY_Clear = 'c',
-  KEY_BkSp = 'b',
+  KEY_BkSp = 127, // backspace on keyboard
   KEY_Start = 'S',
   KEY_Stop = 's',
-  KEY_ESC = '`',
+  KEY_ESC = 27, // esc on keyboard
   KEY_F1 = '!',
   KEY_F2 = '@',
   KEY_F3 = '#',
