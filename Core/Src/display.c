@@ -14,7 +14,7 @@ uint32_t x_size, y_size;
 #define FRAMEBUFFER2_ADDR ((uint32_t *)(SDRAM_DEVICE_ADDR + BUFFER_SIZE))
 
 uint32_t *frontBuffer = FRAMEBUFFER1_ADDR;
-uint32_t *backBuffer  = FRAMEBUFFER2_ADDR;
+uint32_t *backBuffer = FRAMEBUFFER2_ADDR;
 
 uint32_t foregroundColor = UTIL_LCD_COLOR_GREEN; // Default: white
 uint32_t backgroundColor = UTIL_LCD_COLOR_BLACK; // Default: black
@@ -22,205 +22,229 @@ sFONT *font = &Font32;
 
 void ClearCache()
 {
-	// otherwise I get LCD artefacts
-	//SCB_CleanDCache_by_Addr((void *)SDRAM_DEVICE_ADDR, 480*272*4*2);
+  // otherwise I get LCD artefacts
+  //SCB_CleanDCache_by_Addr((void *)SDRAM_DEVICE_ADDR, 480*272*4*2);
 
-	//SCB_CleanDCache_by_Addr((uint32_t *)backBuffer, BUFFER_SIZE);
+  //SCB_CleanDCache_by_Addr((uint32_t *)backBuffer, BUFFER_SIZE);
 }
 
-void uartSetCursorPosition(int row, int col) {
+void uartSetCursorPosition(int row, int col)
+{
   printf("\033[%d;%dH", row, col);
 }
 
-void UartClearScreen() {
+void UartClearScreen()
+{
   printf("\033[2J");
   printf("\033[H"); // Move cursor to top-left corner
 }
 
 void DrawPixel(uint16_t x, uint16_t y, uint32_t color)
 {
-    uint32_t index = y * LCD_WIDTH + x;
-    backBuffer[index] = color;
+  uint32_t index = y * LCD_WIDTH + x;
+  backBuffer[index] = color;
 }
 
 void DrawLine(int x0, int y0, int x1, int y1, uint32_t color)
 {
-    int dx = abs(x1 - x0);
-    int sx = x0 < x1 ? 1 : -1;
-    int dy = -abs(y1 - y0);
-    int sy = y0 < y1 ? 1 : -1;
-    int err = dx + dy;  // error term
+  int dx = abs(x1 - x0);
+  int sx = x0 < x1 ? 1 : -1;
+  int dy = -abs(y1 - y0);
+  int sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy;  // error term
 
-    while (1)
+  while (1)
+  {
+    DrawPixel(x0, y0, color);
+
+    if (x0 == x1 && y0 == y1)
+      break;
+
+    int e2 = 2 * err;
+    if (e2 >= dy)
     {
-        DrawPixel(x0, y0, color);
-
-        if (x0 == x1 && y0 == y1)
-            break;
-
-        int e2 = 2 * err;
-        if (e2 >= dy)
-        {
-            err += dy;
-            x0 += sx;
-        }
-        if (e2 <= dx)
-        {
-            err += dx;
-            y0 += sy;
-        }
+      err += dy;
+      x0 += sx;
     }
+    if (e2 <= dx)
+    {
+      err += dx;
+      y0 += sy;
+    }
+  }
 }
-
 
 void DrawChar(uint16_t x, uint16_t y, char c, bool isFullFont)
 {
-    uint16_t i, j;
-    uint16_t width = font->Width;
-    uint16_t height = font->Height;
-    uint8_t bytesPerRow = (width + 7) / 8;
+  uint16_t i, j;
+  uint16_t width = font->Width;
+  uint16_t height = font->Height;
+  uint8_t bytesPerRow = (width + 7) / 8;
 
-    const uint8_t *char_table;
+  const uint8_t *char_table;
 
-	if (isFullFont)
-	{
-		if (c < 32 || c > 126)
-			return; // Outside printable ASCII range
+  if (isFullFont)
+  {
+    if (c < 32 || c > 126)
+      return; // Outside printable ASCII range
 
-		char_table = font->table + (c - 32) * height * bytesPerRow;
-	}
-	else
-	{
-		// Font only contains '0' to '9' and 'V'
-		if ((c >= '0' && c <= '9'))
-		{
-			char_table = font->table + (c - '0') * height * bytesPerRow;
-		}
-		else if (c == 'V')
-		{
-			char_table = font->table + (10) * height * bytesPerRow; // after 10 digits
-		}
-		else
-		{
-			return; // Not in partial font
-		}
-	}
-
-    for (i = 0; i < height; i++)
+    char_table = font->table + (c - 32) * height * bytesPerRow;
+  } else
+  {
+    // Font only contains '0' to '9' and 'V'
+    if ((c >= '0' && c <= '9'))
     {
-        for (j = 0; j < width; j++)
-        {
-            // Find the byte and bit for this pixel
-            uint8_t byte = char_table[i * bytesPerRow + (j / 8)];
-            uint8_t bit = 1 << (7 - (j % 8));
-
-            if (byte & bit)
-            	DrawPixel(x + j, y + i, foregroundColor);
-            else
-            	DrawPixel(x + j, y + i, backgroundColor);
-        }
+      char_table = font->table + (c - '0') * height * bytesPerRow;
+    } else if (c == 'V')
+    {
+      char_table = font->table + (10) * height * bytesPerRow; // after 10 digits
+    } else
+    {
+      return; // Not in partial font
     }
+  }
+
+  for (i = 0; i < height; i++)
+  {
+    for (j = 0; j < width; j++)
+    {
+      // Find the byte and bit for this pixel
+      uint8_t byte = char_table[i * bytesPerRow + (j / 8)];
+      uint8_t bit = 1 << (7 - (j % 8));
+
+      if (byte & bit)
+        DrawPixel(x + j, y + i, foregroundColor);
+      else
+        DrawPixel(x + j, y + i, backgroundColor);
+    }
+  }
 }
 
 void DrawText(uint16_t x, uint16_t y, uint8_t *text)
 {
-    while (*text)
-    {
-        DrawChar(x, y, *text, true);
-        x += font->Width;
-        text++;
-    }
+  while (*text)
+  {
+    DrawChar(x, y, *text, true);
+    x += font->Width;
+    text++;
+  }
 }
 
 // Converts HSV to RGB (8-bit per channel), hue in [0, 360)
 uint32_t HSVtoRGB(float h, float s, float v)
 {
-    float r, g, b;
+  float r, g, b;
 
-    int i = (int)(h / 60.0f) % 6;
-    float f = (h / 60.0f) - i;
-    float p = v * (1.0f - s);
-    float q = v * (1.0f - f * s);
-    float t = v * (1.0f - (1.0f - f) * s);
+  int i = (int) (h / 60.0f) % 6;
+  float f = (h / 60.0f) - i;
+  float p = v * (1.0f - s);
+  float q = v * (1.0f - f * s);
+  float t = v * (1.0f - (1.0f - f) * s);
 
-    switch (i) {
-        case 0: r = v; g = t; b = p; break;
-        case 1: r = q; g = v; b = p; break;
-        case 2: r = p; g = v; b = t; break;
-        case 3: r = p; g = q; b = v; break;
-        case 4: r = t; g = p; b = v; break;
-        case 5: r = v; g = p; b = q; break;
-    }
+  switch (i)
+  {
+  case 0:
+    r = v;
+    g = t;
+    b = p;
+    break;
+  case 1:
+    r = q;
+    g = v;
+    b = p;
+    break;
+  case 2:
+    r = p;
+    g = v;
+    b = t;
+    break;
+  case 3:
+    r = p;
+    g = q;
+    b = v;
+    break;
+  case 4:
+    r = t;
+    g = p;
+    b = v;
+    break;
+  case 5:
+    r = v;
+    g = p;
+    b = q;
+    break;
+  }
 
-    uint8_t R = (uint8_t)(r * 255.0f);
-    uint8_t G = (uint8_t)(g * 255.0f);
-    uint8_t B = (uint8_t)(b * 255.0f);
+  uint8_t R = (uint8_t) (r * 255.0f);
+  uint8_t G = (uint8_t) (g * 255.0f);
+  uint8_t B = (uint8_t) (b * 255.0f);
 
-    return (0xFF << 24) | (R << 16) | (G << 8) | B;
+  return (0xFF << 24) | (R << 16) | (G << 8) | B;
 }
 
 void DrawMegaText(uint8_t *text, AppContext *ctx)
 {
-	sFONT *oldfont = font;
-	uint32_t oldColor = foregroundColor;
+  sFONT *oldfont = font;
+  uint32_t oldColor = foregroundColor;
 
-
-	ctx->animationIndex = ctx->animationIndex + 128;
-	// Map animation index [0..65535] to hue [0..360)
-	    float hue = ((float)(ctx->animationIndex % 65536) / 65536.0f) * 360.0f;
-	    foregroundColor = HSVtoRGB(hue, 1.0f, 1.0f);  // Full saturation & brightness
+  ctx->animationIndex = ctx->animationIndex + 128;
+  // Map animation index [0..65535] to hue [0..360)
+  float hue = ((float) (ctx->animationIndex % 65536) / 65536.0f) * 360.0f;
+  foregroundColor = HSVtoRGB(hue, 1.0f, 1.0f);  // Full saturation & brightness
   printf("animindx: %d, fgc: 0x%08lX\n", ctx->animationIndex, foregroundColor);
 
-	font = &Font128;
-	int textWidth = strlen((char *)text) * font->Width;
-	uint16_t x = (LCD_WIDTH - textWidth) / 2;
-	uint16_t y = (LCD_HEIGHT - font->Height) / 2;
-    while (*text)
-    {
-        DrawChar(x, y, *text, false);
-        x += font->Width;
-        text++;
-    }
-    font = oldfont;
-    foregroundColor = oldColor;
+  font = &Font128;
+  int textWidth = strlen((char*) text) * font->Width;
+  uint16_t x = (LCD_WIDTH - textWidth) / 2;
+  uint16_t y = (LCD_HEIGHT - font->Height) / 2;
+  while (*text)
+  {
+    DrawChar(x, y, *text, false);
+    x += font->Width;
+    text++;
+  }
+  font = oldfont;
+  foregroundColor = oldColor;
 }
 
 void displayTextLine(uint16_t y, const char *text)
 {
-    DrawText(0, y*(font->Height), (uint8_t *)text);
-    uartSetCursorPosition(y+1, 1);
-    printf(text);
+  DrawText(0, y * (font->Height), (uint8_t*) text);
+  uartSetCursorPosition(y + 1, 1);
+  printf(text);
 }
 
 char getCursor(AppContext *ctx)
 {
-	return ctx->displayCursor ? '_' : ' ';
+  return ctx->displayCursor ? '_' : ' ';
 }
 
-const char* getValueWithCursor(AppContext *ctx) {
-    static char result[7];  // adjust size as needed
-    if (ctx->inputValue != 0)
-        sprintf(result, "%d%c", ctx->inputValue, getCursor(ctx));
-    else
-        sprintf(result, "%c", getCursor(ctx));
-    return result;
+const char* getValueWithCursor(AppContext *ctx)
+{
+  static char result[7];  // adjust size as needed
+  if (ctx->inputValue != 0)
+    sprintf(result, "%d%c", ctx->inputValue, getCursor(ctx));
+  else
+    sprintf(result, "%c", getCursor(ctx));
+  return result;
 }
 
 void DrawCalibrationLine(AppContext *ctx, uint16_t voltage, uint8_t idx)
 {
-	char buffer[LCD_LINE_WIDTH+5];
-    if (ctx->calibrationIndex == idx)
-    	sprintf(buffer, "PWM pct for %dV: %s", voltage, getValueWithCursor(ctx));
-    else
-    	sprintf(buffer, "PWM pct for %dV: %d", voltage, ctx->calibrationPoints[idx]);
-    displayTextLine(idx+1, buffer);
+  char buffer[LCD_LINE_WIDTH + 5];
+  if (ctx->calibrationIndex == idx)
+    sprintf(buffer, "PWM pct for %dV: %s", voltage, getValueWithCursor(ctx));
+  else
+    sprintf(buffer, "PWM pct for %dV: %d", voltage,
+        ctx->calibrationPoints[idx]);
+  displayTextLine(idx + 1, buffer);
 }
 
 void RenderNewFrame() // do the double buffering magic
 {
   ClearCache();
 
-  BSP_LCD_SetLayerAddress(0, 0, (uint32_t)backBuffer);
+  BSP_LCD_SetLayerAddress(0, 0, (uint32_t) backBuffer);
   HAL_LTDC_Reload(&hlcd_ltdc, LTDC_RELOAD_VERTICAL_BLANKING);
 
   // Swap pointers
@@ -231,49 +255,48 @@ void RenderNewFrame() // do the double buffering magic
 
 void DisplayState(AppContext *ctx)
 {
-  char buffer[LCD_LINE_WIDTH+1];
+  char buffer[LCD_LINE_WIDTH + 1];
   for (int x = 0; x < 480; x++) // basically clear screen. TODO: Make it much faster
   {
-	  for (int y = 0; y <272; y++)
-	  {
-		  DrawPixel(x, y, UTIL_LCD_COLOR_BLACK);
-	  }
+    for (int y = 0; y < 272; y++)
+    {
+      DrawPixel(x, y, UTIL_LCD_COLOR_BLACK);
+    }
   }
   font = &Font32;
   foregroundColor = UTIL_LCD_COLOR_GREEN;
 
   UartClearScreen();
 
-  if (ctx->currentState == STATE_F1) {
-	  //font = &Font40;
-	displayTextLine(0, "F1: Voltage control");
-    if (ctx->isPwmRunning == true) {
-        sprintf(buffer, "PWM is running at %dV", ctx->voltage);
-        displayTextLine(1, buffer);
+  if (ctx->currentState == STATE_F1)
+  {
+    //font = &Font40;
+    displayTextLine(0, "F1: Voltage control");
+    if (ctx->isPwmRunning == true)
+    {
+      sprintf(buffer, "PWM is running at %dV", ctx->voltage);
+      displayTextLine(1, buffer);
 
-        sprintf(buffer, "PWM duty %d pct", GetPwmForVoltage(ctx));
-        displayTextLine(2, buffer);
+      sprintf(buffer, "PWM duty %d pct", GetPwmForVoltage(ctx));
+      displayTextLine(2, buffer);
 
       displayTextLine(3, "Press STOP");
-    }
-    else if (ctx->isVoltageEntered)
+    } else if (ctx->isVoltageEntered)
     {
-	  sprintf(buffer, "Voltage: %dV", ctx->voltage);
+      sprintf(buffer, "Voltage: %dV", ctx->voltage);
       displayTextLine(1, buffer);
       displayTextLine(2, "Press START or Clear");
       displayTextLine(3, "");
-    }
-    else
+    } else
     {
-	  sprintf(buffer, "Enter voltage: %s", getValueWithCursor(ctx));
+      sprintf(buffer, "Enter voltage: %s", getValueWithCursor(ctx));
       displayTextLine(1, buffer);
       displayTextLine(2, "Press Enter");
       displayTextLine(3, "");
     }
-  }
-  else if (ctx->currentState == STATE_F2)
+  } else if (ctx->currentState == STATE_F2)
   {
-	font = &Font24;
+    font = &Font24;
     //DrawText(0, 0, (uint8_t *)"F2: Calibration");
     displayTextLine(0, "F2: Calibration");
     DrawCalibrationLine(ctx, 80, 0);
@@ -285,54 +308,56 @@ void DisplayState(AppContext *ctx)
     uint16_t dx = 400;
     uint16_t dy = 120;
 
-    DrawLine(cx, cy, cx+dx, cy, UTIL_LCD_COLOR_WHITE);
-    DrawLine(cx, cy, cx, cy-dy, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx, cy, cx + dx, cy, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx, cy, cx, cy - dy, UTIL_LCD_COLOR_WHITE);
 
-    DrawLine(cx+(dx / 5), cy, cx+(dx / 5), cy-5, UTIL_LCD_COLOR_WHITE);
-    DrawLine(cx+(dx / 2), cy, cx+(dx / 2), cy-5, UTIL_LCD_COLOR_WHITE);
-    DrawLine(cx+dx, cy, cx+dx, cy-5, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx + (dx / 5), cy, cx + (dx / 5), cy - 5, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx + (dx / 2), cy, cx + (dx / 2), cy - 5, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx + dx, cy, cx + dx, cy - 5, UTIL_LCD_COLOR_WHITE);
 
     uint16_t y0 = cy - (ctx->calibrationPoints[0] * dy / 100);
     uint16_t y1 = cy - (ctx->calibrationPoints[1] * dy / 100);
     uint16_t y2 = cy - (ctx->calibrationPoints[2] * dy / 100);
 
-    DrawLine(cx, y0, cx+5, y0, UTIL_LCD_COLOR_WHITE);
-    DrawLine(cx, y1, cx+5, y1, UTIL_LCD_COLOR_WHITE);
-    DrawLine(cx, y2, cx+5, y2, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx, y0, cx + 5, y0, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx, y1, cx + 5, y1, UTIL_LCD_COLOR_WHITE);
+    DrawLine(cx, y2, cx + 5, y2, UTIL_LCD_COLOR_WHITE);
 
     font = &Font16;
     foregroundColor = UTIL_LCD_COLOR_WHITE;
-    DrawText(cx+(dx/5)-15, cy+8, (uint8_t *)"80V");
-    DrawText(cx+(dx/2)-20, cy+8, (uint8_t *)"200V");
-    DrawText(cx+dx-25, cy+8, (uint8_t *)"400V");
+    DrawText(cx + (dx / 5) - 15, cy + 8, (uint8_t*) "80V");
+    DrawText(cx + (dx / 2) - 20, cy + 8, (uint8_t*) "200V");
+    DrawText(cx + dx - 25, cy + 8, (uint8_t*) "400V");
 
     sprintf(buffer, "%d%%", ctx->calibrationPoints[0]);
-    DrawText(cx-35, y0-6, (uint8_t *)buffer);
+    DrawText(cx - 35, y0 - 6, (uint8_t*) buffer);
     sprintf(buffer, "%d%%", ctx->calibrationPoints[1]);
-    DrawText(cx-35, y1-6, (uint8_t *)buffer);
+    DrawText(cx - 35, y1 - 6, (uint8_t*) buffer);
     sprintf(buffer, "%d%%", ctx->calibrationPoints[2]);
     uint16_t shift = 0;
-    if (ctx->calibrationPoints[2] == 100) shift = -10;
-    DrawText(cx-35+shift, y2-6, (uint8_t *)buffer);
+    if (ctx->calibrationPoints[2] == 100)
+      shift = -10;
+    DrawText(cx - 35 + shift, y2 - 6, (uint8_t*) buffer);
 
-    DrawLine(cx+(dx / 5), y0, cx+(dx / 2), y1, UTIL_LCD_COLOR_ST_GRAY_LIGHT);
-    DrawLine(cx+(dx / 5), y0+1, cx+(dx / 2), y1+1, UTIL_LCD_COLOR_ST_GRAY_LIGHT);
+    DrawLine(cx + (dx / 5), y0, cx + (dx / 2), y1,
+        UTIL_LCD_COLOR_ST_GRAY_LIGHT);
+    DrawLine(cx + (dx / 5), y0 + 1, cx + (dx / 2), y1 + 1,
+        UTIL_LCD_COLOR_ST_GRAY_LIGHT);
 
-    DrawLine(cx+(dx / 2), y1, cx+dx, y2, UTIL_LCD_COLOR_ST_GRAY_LIGHT);
-    DrawLine(cx+(dx / 2), y1+1, cx+dx, y2+1, UTIL_LCD_COLOR_ST_GRAY_LIGHT);
+    DrawLine(cx + (dx / 2), y1, cx + dx, y2, UTIL_LCD_COLOR_ST_GRAY_LIGHT);
+    DrawLine(cx + (dx / 2), y1 + 1, cx + dx, y2 + 1,
+        UTIL_LCD_COLOR_ST_GRAY_LIGHT);
     font = &Font24; // for potential error message
-  }
-  else if (ctx->currentState == STATE_F3)
+  } else if (ctx->currentState == STATE_F3)
   {
-	displayTextLine(0, "F3: Voltage and current");
+    displayTextLine(0, "F3: Voltage and current");
     displayTextLine(1, "");
     displayTextLine(2, "");
     displayTextLine(3, "");
-  }
-  else if (ctx->currentState == STATE_F4)
+  } else if (ctx->currentState == STATE_F4)
   {
     sprintf(buffer, "%dV", ctx->voltage);
-	DrawMegaText((uint8_t *)buffer, ctx);
+    DrawMegaText((uint8_t*) buffer, ctx);
   }
   foregroundColor = UTIL_LCD_COLOR_RED;
   displayTextLine(4, ctx->message);

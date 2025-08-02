@@ -2,74 +2,95 @@
 
 uint32_t lastCursorTime = 0;
 
-void clearInput(AppContext *ctx) {
+void clearInput(AppContext *ctx)
+{
   ctx->inputValue = 0;
 }
 
-void revertCalibration(AppContext *ctx) {
+void revertCalibration(AppContext *ctx)
+{
   ctx->inputValue = ctx->calibrationPoints[ctx->calibrationIndex];
 }
 
-void clearVoltage(AppContext *ctx) {
+void clearVoltage(AppContext *ctx)
+{
   ctx->voltage = 0;
   ctx->isVoltageEntered = false;
 }
 
-void backspace(AppContext *ctx) {
+void backspace(AppContext *ctx)
+{
   ctx->inputValue = ctx->inputValue / 10;
 }
 
-void stopPWM(AppContext *ctx, CallbackFunction stopPwmCallback) {
+void stopPWM(AppContext *ctx, CallbackFunction stopPwmCallback)
+{
   ctx->isPwmRunning = false;
   stopPwmCallback();
 }
 
-uint16_t LinearInterpolate(uint16_t x, uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
-    if (x1 == x0) return y0; // Prevent division by zero
-    return y0 + ((uint32_t)(x - x0) * (y1 - y0)) / (x1 - x0);
+uint16_t LinearInterpolate(uint16_t x, uint16_t x0, uint16_t x1, uint16_t y0,
+    uint16_t y1)
+{
+  if (x1 == x0)
+    return y0; // Prevent division by zero
+  return y0 + ((uint32_t) (x - x0) * (y1 - y0)) / (x1 - x0);
 }
 
-uint16_t GetPwmForVoltage(AppContext* ctx) {
-    if (ctx->voltage <= 80) {
-        return ctx->calibrationPoints[0];
-    } else if (ctx->voltage <= 200) {
-        return LinearInterpolate(ctx->voltage, 80, 200, ctx->calibrationPoints[0], ctx->calibrationPoints[1]);
-    } else if (ctx->voltage <= 400) {
-        return LinearInterpolate(ctx->voltage, 200, 400, ctx->calibrationPoints[1], ctx->calibrationPoints[2]);
-    } else {
-        return ctx->calibrationPoints[2];
-    }
+uint16_t GetPwmForVoltage(AppContext *ctx)
+{
+  if (ctx->voltage <= 80)
+  {
+    return ctx->calibrationPoints[0];
+  } else if (ctx->voltage <= 200)
+  {
+    return LinearInterpolate(ctx->voltage, 80, 200, ctx->calibrationPoints[0],
+        ctx->calibrationPoints[1]);
+  } else if (ctx->voltage <= 400)
+  {
+    return LinearInterpolate(ctx->voltage, 200, 400, ctx->calibrationPoints[1],
+        ctx->calibrationPoints[2]);
+  } else
+  {
+    return ctx->calibrationPoints[2];
+  }
 }
 
-void startPWM(AppContext *ctx, CallbackWithParam startPwmCallback) {
+void startPWM(AppContext *ctx, CallbackWithParam startPwmCallback)
+{
   ctx->isPwmRunning = true;
   uint16_t percent = GetPwmForVoltage(ctx);
   startPwmCallback(percent);
 }
 
-void setSTATE_F4(AppContext *ctx) {
+void setSTATE_F4(AppContext *ctx)
+{
   clearInput(ctx);
   ctx->animationIndex = 21845; // so that it starts on UTIL_LCD_COLOR_GREEN
   ctx->currentState = STATE_F4;
 }
 
-void setSTATE_F3(AppContext *ctx) {
+void setSTATE_F3(AppContext *ctx)
+{
   clearInput(ctx);
   ctx->currentState = STATE_F3;
 }
 
-void setSTATE_F2(AppContext *ctx) {
+void setSTATE_F2(AppContext *ctx)
+{
   ctx->currentState = STATE_F2;
   ctx->calibrationIndex = 0;
   ctx->inputValue = ctx->calibrationPoints[0];
 }
 
-void setSTATE_F1(AppContext *ctx) {
+void setSTATE_F1(AppContext *ctx)
+{
   clearInput(ctx);
   ctx->currentState = STATE_F1;
 }
 
-void validateAndSetVoltage(AppContext *ctx) {
+void validateAndSetVoltage(AppContext *ctx)
+{
   if (ctx->inputValue < 80 || ctx->inputValue > 400)
   {
     strcpy(ctx->message, "Not in range 80 - 400!");
@@ -81,7 +102,9 @@ void validateAndSetVoltage(AppContext *ctx) {
   ctx->inputValue = 0;
 }
 
-void validateAndSetCalibration(AppContext *ctx, CallbackWithContext storeContext) {
+void validateAndSetCalibration(AppContext *ctx,
+    CallbackWithContext storeContext)
+{
   if (ctx->inputValue < 0 || ctx->inputValue > 100)
   {
     strcpy(ctx->message, "Not in range 0 - 100!");
@@ -97,86 +120,114 @@ void validateAndSetCalibration(AppContext *ctx, CallbackWithContext storeContext
 void updateInput(AppContext *ctx, KeyboardButton key, uint8_t maxValue) // maxValue is actually divided by 10
 {
   uint8_t digit = key - '0';
-  if (ctx->inputValue > maxValue) {
+  if (ctx->inputValue > maxValue)
+  {
     strcpy(ctx->message, "Input too high!");
     return;
   }
   ctx->inputValue = ctx->inputValue * 10 + digit;
 }
 
-bool handle_event(AppContext *ctx, KeyboardButton key, CallbackWithParam startPwmCallback, CallbackFunction stopPwmCallback, CallbackWithContext storeContext)
+bool handle_event(AppContext *ctx, KeyboardButton key,
+    CallbackWithParam startPwmCallback, CallbackFunction stopPwmCallback,
+    CallbackWithContext storeContext)
 {
   if (key == KEY_NULL)
   {
-	  // cursor logic
-	  uint32_t now = HAL_GetTick();
-	  if (now - lastCursorTime > 500)
-	  {
-		  ctx->displayCursor = !ctx->displayCursor;
-		  lastCursorTime = now;
-		  return true;
-	  }
+    // cursor logic
+    uint32_t now = HAL_GetTick();
+    if (now - lastCursorTime > 500)
+    {
+      ctx->displayCursor = !ctx->displayCursor;
+      lastCursorTime = now;
+      return true;
+    }
 
-	  if (ctx->currentState == STATE_F4) return true; // to do some crazy animations
+    if (ctx->currentState == STATE_F4)
+      return true; // to do some crazy animations
 
-	  return false;
+    return false;
   }
   strcpy(ctx->message, "");
 
-  if (ctx->currentState == STATE_F1) {
-	if (ctx->isPwmRunning == true)
-	{
-	  if (key == KEY_Stop) stopPWM(ctx, stopPwmCallback);
-	  if (key == KEY_F4) setSTATE_F4(ctx);
-	  return false; // when PWM is running, we can only press the "STOP" button
-	}
+  if (ctx->currentState == STATE_F1)
+  {
+    if (ctx->isPwmRunning == true)
+    {
+      if (key == KEY_Stop)
+        stopPWM(ctx, stopPwmCallback);
+      if (key == KEY_F4)
+        setSTATE_F4(ctx);
+      return false; // when PWM is running, we can only press the "STOP" button
+    }
 
-	if (ctx->isVoltageEntered == true) // valid voltage has been entered
-	{
-	  if (key == KEY_Start) {
-		  startPWM(ctx, startPwmCallback);
-	  }
-      if (key == KEY_Clear) clearVoltage(ctx);
-	} else
-	{
-	  if (key >= KEY_0 && key <= KEY_9) updateInput(ctx, key, 40);
-	  if (key == KEY_Enter) validateAndSetVoltage(ctx);
-	  if (key == KEY_BkSp) backspace(ctx);
-	  if (key == KEY_ESC) clearInput(ctx);
-	}
+    if (ctx->isVoltageEntered == true) // valid voltage has been entered
+    {
+      if (key == KEY_Start)
+      {
+        startPWM(ctx, startPwmCallback);
+      }
+      if (key == KEY_Clear)
+        clearVoltage(ctx);
+    } else
+    {
+      if (key >= KEY_0 && key <= KEY_9)
+        updateInput(ctx, key, 40);
+      if (key == KEY_Enter)
+        validateAndSetVoltage(ctx);
+      if (key == KEY_BkSp)
+        backspace(ctx);
+      if (key == KEY_ESC)
+        clearInput(ctx);
+    }
 
-    if (key == KEY_F2) setSTATE_F2(ctx);
-    if (key == KEY_F3) setSTATE_F3(ctx);
+    if (key == KEY_F2)
+      setSTATE_F2(ctx);
+    if (key == KEY_F3)
+      setSTATE_F3(ctx);
   }
 
-  if (ctx->currentState == STATE_F2) {
-	if (key >= KEY_0 && key <= KEY_9) updateInput(ctx, key, 10);
-	if (key == KEY_Enter) validateAndSetCalibration(ctx, storeContext);
-	if (key == KEY_BkSp) backspace(ctx);
-	if (key == KEY_ESC) revertCalibration(ctx);
-	if (key == KEY_Clear) clearInput(ctx);
-	if (key == KEY_F1) setSTATE_F1(ctx);
-	if (key == KEY_F3) setSTATE_F3(ctx);
+  if (ctx->currentState == STATE_F2)
+  {
+    if (key >= KEY_0 && key <= KEY_9)
+      updateInput(ctx, key, 10);
+    if (key == KEY_Enter)
+      validateAndSetCalibration(ctx, storeContext);
+    if (key == KEY_BkSp)
+      backspace(ctx);
+    if (key == KEY_ESC)
+      revertCalibration(ctx);
+    if (key == KEY_Clear)
+      clearInput(ctx);
+    if (key == KEY_F1)
+      setSTATE_F1(ctx);
+    if (key == KEY_F3)
+      setSTATE_F3(ctx);
   }
 
-  if (ctx->currentState == STATE_F3) {
-	if (key == KEY_F1) setSTATE_F1(ctx);
-	if (key == KEY_F2) setSTATE_F2(ctx);
+  if (ctx->currentState == STATE_F3)
+  {
+    if (key == KEY_F1)
+      setSTATE_F1(ctx);
+    if (key == KEY_F2)
+      setSTATE_F2(ctx);
   }
 
-  if (ctx->currentState == STATE_F4) {
-	if (key == KEY_F1) setSTATE_F1(ctx);
+  if (ctx->currentState == STATE_F4)
+  {
+    if (key == KEY_F1)
+      setSTATE_F1(ctx);
   }
-return true;
+  return true;
 }
 
-void InitializeAppContext(AppContext* ctx)
+void InitializeAppContext(AppContext *ctx)
 {
-	ctx->isVoltageEntered = false;
-	ctx->isPwmRunning = false;
-	ctx->voltage = 0;
-	ctx->inputValue = 0;
-	strcpy(ctx->message, " ");
-	// calibration points are read from eMMC, no need to initialize them here
-	setSTATE_F1(ctx);
+  ctx->isVoltageEntered = false;
+  ctx->isPwmRunning = false;
+  ctx->voltage = 0;
+  ctx->inputValue = 0;
+  strcpy(ctx->message, " ");
+  // calibration points are read from eMMC, no need to initialize them here
+  setSTATE_F1(ctx);
 }
