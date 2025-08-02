@@ -56,6 +56,8 @@ static void TIM_Config(void);
 static void RNG_Config(void);
 static void MX_USART3_UART_Init(void);
 static int32_t MMC_Config(void);
+static void StoreContext(AppContext *ctx);
+static int ReadContextFromEMMC(AppContext *ctx);
 
 void TIM8_Stop();
 void TIM8_Start(uint16_t percent);
@@ -64,58 +66,7 @@ void MX_TIM8_PWM_Init();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void StoreContext(AppContext *ctx)
-{
-//    BSP_MMC_WriteBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
-//    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
 
-  ConfigData config;
-  config.val1 = ctx->calibrationPoints[0];
-  config.val2 = ctx->calibrationPoints[1];
-  config.val3 = ctx->calibrationPoints[2];
-  config.magic = 0xAA55;
-
-  uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)] = { 0 };
-  memcpy(buf, &config, sizeof(ConfigData));
-
-  if (BSP_MMC_WriteBlocks(0, (uint32_t*) buf, EMMC_START_ADDR,
-      1) != BSP_ERROR_NONE)
-    return;
-
-  while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK)
-    ;
-}
-
-int ReadContextFromEMMC(AppContext *ctx)
-{
-  uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
-
-  // initialize reasonable default values in case read from eMMC fails for any reason
-  ctx->calibrationPoints[0] = 20;
-  ctx->calibrationPoints[1] = 50;
-  ctx->calibrationPoints[2] = 100;
-
-  if (BSP_MMC_ReadBlocks(0, buf, EMMC_START_ADDR, 1) != BSP_ERROR_NONE)
-  {
-    int a = 4;
-    a++;
-    // possibly return in here, depending on error in HAL. If its 9, its probably OKay?
-  }
-
-  while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK)
-    ;
-
-  ConfigData config;
-  memcpy(&config, (const void*) buf, sizeof(ConfigData));
-  if (config.magic == 0xAA55)
-  {
-    ctx->calibrationPoints[0] = config.val1;
-    ctx->calibrationPoints[1] = config.val2;
-    ctx->calibrationPoints[2] = config.val3;
-  }
-
-  return 0;
-}
 /* USER CODE END 0 */
 
 /**
@@ -166,10 +117,8 @@ int main(void)
   while (1)
   {
     KeyboardButton key = ReadFlexiKeyboard(); // approx 5ms blocking code to scan the keyboard
-    bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop,
-        StoreContext);
-    if (!ctxChanged)
-      continue; // no need to redraw display
+    bool ctxChanged = handle_event(&ctx, key, TIM8_Start, TIM8_Stop, StoreContext);
+    if (!ctxChanged) continue; // no need to redraw display
     DisplayState(&ctx);
     /* USER CODE END WHILE */
 
@@ -423,6 +372,59 @@ static void RNG_Config(void)
 static int32_t MMC_Config(void)
 {
   return BSP_MMC_Init(0);
+}
+
+void StoreContext(AppContext *ctx)
+{
+//    BSP_MMC_WriteBlocks(0, top_scores, EMMC_START_ADDR, EMMC_BLOCK_COUNT);
+//    while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK);
+
+  ConfigData config;
+  config.val1 = ctx->calibrationPoints[0];
+  config.val2 = ctx->calibrationPoints[1];
+  config.val3 = ctx->calibrationPoints[2];
+  config.magic = 0xAA55;
+
+  uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)] = { 0 };
+  memcpy(buf, &config, sizeof(ConfigData));
+
+  if (BSP_MMC_WriteBlocks(0, (uint32_t*) buf, EMMC_START_ADDR,
+      1) != BSP_ERROR_NONE)
+    return;
+
+  while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK)
+    ;
+}
+
+int ReadContextFromEMMC(AppContext *ctx)
+{
+  uint32_t buf[MMC_BLOCKSIZE / sizeof(uint32_t)];
+
+  // initialize reasonable default values in case read from eMMC fails for any reason
+  ctx->calibrationPoints[0] = 20;
+  ctx->calibrationPoints[1] = 50;
+  ctx->calibrationPoints[2] = 100;
+
+  if (BSP_MMC_ReadBlocks(0, buf, EMMC_START_ADDR, 1) != BSP_ERROR_NONE)
+  {
+    int a = 4;
+    a++;
+    // possibly return in here, depending on error in HAL. If its 9, its probably OKay?
+  }
+
+  while (BSP_MMC_GetCardState(0) != MMC_TRANSFER_OK)
+    ;
+
+  ConfigData config;
+  memcpy(&config, (const void*) buf, sizeof(ConfigData));
+  if (config.magic == 0xAA55)
+  {
+    ctx->calibrationPoints[0] = config.val1;
+    ctx->calibrationPoints[1] = config.val2;
+    ctx->calibrationPoints[2] = config.val3;
+  }
+
+  return 0;
 }
 
 //void HAL_LTDC_ReloadEventCallback(LTDC_HandleTypeDef* hltdc) {
